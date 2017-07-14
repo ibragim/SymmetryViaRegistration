@@ -3,6 +3,7 @@ clear, clc
 scsz = get(0,'ScreenSize'); % scsz = [left botton width height]
 figure('Position',[scsz(3)/4 scsz(4)/4 scsz(3)/2 scsz(4)/2])
 
+
 %% 2D
 
 Image = imread('gantrycrane.png');
@@ -17,8 +18,7 @@ p = mp+sl/2*[cos(ag); sin(ag)];
 q = mp-sl/2*[cos(ag); sin(ag)];
 Image = insertShape(Image,'line',[p(2) p(1) q(2) q(1)],'LineWidth',3,'Color','green');
 
-subplot(1,2,1)
-image(Image), axis equal, axis off, title('2D')
+subplot(1,2,1), imshow(Image), title('2D')
 
 
 %% 3D
