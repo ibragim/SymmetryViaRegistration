@@ -349,7 +349,6 @@ SortS = SortS(:,1:10);
 
 s = sum(SortS,2);
 
-% ---------- find endpoints via 'local maxima' -----------------
 l = 5;
 k1 = [ones(1,l) -ones(1,l)];
 s1 = conv(s,k1,'same');
@@ -373,88 +372,6 @@ if strcmp(mode,'debug')
     imshow([normalize(SS) SortS I])
     pause
 end
-% --------------------------------------------------------------
-
-
-% ---------- find endpoints via 'fitting step function' --------
-% ns = s/max(s);
-% l = length(s);
-% ijl = [];
-% for i = 1:l-1
-%     for j = i+1:l
-%         L = ns(1:i);
-%         M = ns(i:j);
-%         R = ns(j:l);
-%         loss = median(L)-0.1*median(M)+median(R);
-%         ijl = [ijl; [i j loss]];
-%     end
-% end
-% [~,im] = min(ijl(:,3));
-% i0 = ijl(im,1);
-% i1 = ijl(im,2);
-% if strcmp(mode,'debug')
-%     subplot(1,2,1)
-%     plot(ns,'b'), hold on
-%     x = 1:i0; plot(x,zeros(1,length(x)),'ok')
-%     x = i0:i1; plot(x,ones(1,length(x)),'ok')
-%     x = i1:l; plot(x,zeros(1,length(x)),'ok'), hold off
-%     subplot(1,2,2)
-%     imshow(imresize([normalize(SS) SortS I],2))
-%     pause
-% end
-% --------------------------------------------------------------
-
-% ---------- find endpoints via registration -------------------
-% L = I(:,1:hnc);
-% R = fliplr(I(:,end-hnc+1:end));
-% s = 5;
-% hh = 2;
-% circBuffer = zeros(1,5);
-% % i0 = nr-hh-1;
-% for i = hh+1:nr-hh-1
-%     LSlice = L(i-hh:i+hh,:);
-%     RSlice = R(i-hh:i+hh,:);
-%     count = 0;
-%     for k = 1:hnc-s+1
-%         j1 = k;
-%         j2 = k+s-1;
-%         Template = LSlice(:,j1:j2);
-%         if var(Template(:)) > 0.001
-%             [ROI,~,mc] = locate_subset(Template,RSlice);
-%             if abs(ROI(1)-j1) < 10 && ROI(1) > 0 && ROI(1)+s-1 <= hnc && mc > 0% && max2(Template) > 0.1
-%                 count = count+1;
-%             end
-%         end
-%     end
-%     circBuffer(mod(i-1,length(circBuffer))+1) = count;
-%     if sum(circBuffer > 2) > 1
-%         i0 = i;
-%         break
-%     end
-% end
-% % i1 = nr;
-% for i = nr-hh:-1:i0
-%     LSlice = L(i-hh:i+hh,:);
-%     RSlice = R(i-hh:i+hh,:);
-%     count = 0;
-%     for k = 1:hnc-s+1
-%         j1 = k;
-%         j2 = k+s-1;
-%         Template = LSlice(:,j1:j2);
-%         if var(Template(:)) > 0.001
-%             [ROI,~,mc] = locate_subset(Template,RSlice);
-%             if abs(ROI(1)-j1) < 10 && ROI(1) > 0 && ROI(1)+s-1 <= hnc && mc > 0% && max2(Template) > 0.1
-%                 count = count+1;
-%             end
-%         end
-%     end
-%     circBuffer(mod(i-1,length(circBuffer))+1) = count;
-%     if sum(circBuffer > 2) > 1
-%         i1 = i;
-%         break
-%     end
-% end
-% --------------------------------------------------------------
 
 ep0 = [i0 round(nc/2)];
 ep1 = [i1 round(nc/2)];
