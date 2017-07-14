@@ -1,4 +1,62 @@
-function [angles, midPoints, segLengths, IOut] = symmetryViaRegistration2D(Image,varargin)
+function [angles, midPoints, segLengths, strenghts, IOut] = symmetryViaRegistration2D(Image,varargin)
+% [angles, midPoints, segLengths, strenghts, IOut] = symmetryViaRegistration2D(Image,varargin)
+% Computes mirror symmetry segments in 2D images via registration.
+%
+% Inputs
+%     Image: grayscale or rgb image
+% Optional Inputs
+%     'RegMethod': the registration method; options are...
+%         'dense' (default): uses Matlab's 'imregtform' function to register images
+%         'sparse': uses Matlab's 'detectSURFFeatures' and 'matchFeatures' to register images
+%         'nxc': uses RANSAC + Normalized Cross Correlation to register images, as described in reference below
+%             Note: 'dense' and 'sparse' are fast methods; 'nxc' works best, but takes longer to run.
+%     (the following optional parameters are only valid when 'nxc' is used)
+%     'BoxSize': dimensions of patch for 'Normalized Cross Correlation registration (default 50)
+%     'NumBoxSamples': number of patch samples for RANSAC (default 100)
+%     'MaxNumOutputs': suggested maximum number of output symmetry lines; the actuall number can be smaller.
+%
+% Outputs
+%     angles: angles of symmetry lines
+%     midPoints: mid-points of symmetry lines (one per column)
+%     segLengths: lenghts of symmetry lines
+%     strenghts: strenghts of symmetry lines (they are sorted in descending order, so the first line is always the strongest guess)
+%     IOut: image with drawn symmetry lines
+%
+% Comments
+%     1. When 'RegMethod' is 'dense' or 'sparse', only one output line is computed.
+%        The only way to get more output lines is by using 'nxc'.
+%     2. The angles are in the row/col coordinate system, that is, where x corresponds to rows and y to columns.
+%        Therefore, to obtain the end-points p,q of the first symmetry line, do the following:
+%            ag = angles(1);
+%            mp = midPoints(:,1);
+%            sl = segLengths(1);
+%            p = mp+sl/2*[cos(ag); sin(ag)]; % one end-point
+%            q = mp-sl/2*[cos(ag); sin(ag)]; % another end-point
+%        Now the ***row*** of the endpoint p is p(1) and the ***column*** is p(2) 
+%        This means that you have invert these coordinates for certain Matlab functions such as insertShape. See example below.
+%
+% Example
+%     Image = imread('gantrycrane.png');
+%     Image = imrotate(Image,45,'crop');
+% 
+%     [angles, midPoints, segLengths, strenghts] = symmetryViaRegistration2D(Image);
+% 
+%     ag = angles(1);
+%     mp = midPoints(:,1);
+%     sl = segLengths(1);
+%     p = mp+sl/2*[cos(ag); sin(ag)];
+%     q = mp-sl/2*[cos(ag); sin(ag)];
+%     Image = insertShape(Image,'line',[p(2) p(1) q(2) q(1)],'LineWidth',3,'Color','green');
+% 
+%     figure
+%     image(Image), axis equal, axis off
+%
+% Reference
+%     Finding Mirror Symmetry via Registration
+%     Marcelo Cicconet, David G. C. Hildebrand, Hunter Elliott
+%     https://arxiv.org/abs/1611.05971
+%
+% Marcelo Cicconet, Jul 2017
 
 ip = inputParser;
 ip.addParameter('RegMethod','dense'); % 'dense','sparse','nxc'
@@ -8,7 +66,7 @@ ip.addParameter('MaxNumOutputs',1); % only used with 'nxc' registration
 ip.parse(varargin{:});
 prmts = ip.Results;
 
-if nargout > 3
+if nargout > 4
     IOut = Image;
 end
 
@@ -31,9 +89,12 @@ GI = normalize(imgradient(I));
 I = normalize(double(I));
 
 if strcmp(prmts.RegMethod,'nxc')
-    [cellp,cellv] = eigsymNXC(GI,0,prmts.BoxSize,prmts.NumBoxSamples,prmts.MaxNumOutputs);
+    [cellp,cellv,srmags] = eigsymNXC(GI,0,prmts.BoxSize,prmts.NumBoxSamples,prmts.MaxNumOutputs);
+    srmags = srmags/max(srmags);
+    strenghts = srmags(1:length(cellp));
 elseif strcmp(prmts.RegMethod,'dense') || strcmp(prmts.RegMethod,'sparse')
     [cellp,cellv] = eigsym(I,0,prmts.RegMethod);
+    strenghts = 1;
 else
     error('Registration method not recognized.')
 end
@@ -41,7 +102,7 @@ end
 nOutputs = length(cellp);
 
 angles = zeros(1,nOutputs);
-midPoints = zeros(nOutputs,2);
+midPoints = zeros(2,nOutputs);
 segLengths = zeros(1,nOutputs);
 
 for iOutput = 1:nOutputs
@@ -77,14 +138,14 @@ for iOutput = 1:nOutputs
     seglenI = seglenI/rf;
     
     angles(iOutput) = ag;
-    midPoints(iOutput,:) = midpointI;
+    midPoints(:,iOutput) = midpointI';
     segLengths(iOutput) = seglenI;
     
-    if nargout > 3
+    if nargout > 4
         v1 = midpointI+seglenI/2*[cos(ag) sin(ag)];
         v2 = midpointI-seglenI/2*[cos(ag) sin(ag)];
-        IOut = insertShape(IOut,'line',[v1(2) v1(1) v2(2) v2(1)],'LineWidth',7,'Color','green');
-        IOut = insertShape(IOut,'line',[v1(2) v1(1) v2(2) v2(1)],'LineWidth',5,'Color','yellow');
+        IOut = insertShape(IOut,'line',[v1(2) v1(1) v2(2) v2(1)],'LineWidth',5,'Color','green');
+        IOut = insertShape(IOut,'line',[v1(2) v1(1) v2(2) v2(1)],'LineWidth',1,'Color','yellow');
     end
 end
 
@@ -92,7 +153,7 @@ end
 
 % ----------------------------------------------------------------------------------------------------
 
-function [p,v] = eigsymNXC(I,refAngle,boxSize,nBoxSamples,maxNOutputs)
+function [p,v,srmags] = eigsymNXC(I,refAngle,boxSize,nBoxSamples,maxNOutputs)
 % I should be double, in range [0,1]
 
 % reflect
@@ -107,7 +168,7 @@ yWorldLimits = [1 size(I,1)];
 J = imwarp(I,tform,'OutputView',imref2d(size(I),xWorldLimits,yWorldLimits));
 
 % register
-tforms = computeNormxcorrTransforms(J,I,boxSize,nBoxSamples,maxNOutputs);
+[tforms, srmags] = computeNormxcorrTransforms(J,I,boxSize,nBoxSamples,maxNOutputs);
 
 nTForms = length(tforms);
 p = cell(1,nTForms);
@@ -141,7 +202,7 @@ end
 
 end
 
-function tforms = computeNormxcorrTransforms(J,I,boxSize,nBoxSamples,maxNOutputs) % J: moving, I: fixed
+function [tforms, srmags] = computeNormxcorrTransforms(J,I,boxSize,nBoxSamples,maxNOutputs) % J: moving, I: fixed
 
 [numrows,numcols] = size(I);
 rangles = 0:6:360-6;
@@ -188,7 +249,7 @@ parfor iangle = 1:length(rangles)
 end
 % fprintf('\n')
 
-[~,iangles] = sort(rmags,'descend');
+[srmags,iangles] = sort(rmags,'descend');
 nTForms = min(length(rangles),maxNOutputs);
 tforms = cell(1,nTForms);
 for i = 1:nTForms

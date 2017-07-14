@@ -1,22 +1,35 @@
+clear, clc
+
+scsz = get(0,'ScreenSize'); % scsz = [left botton width height]
+figure('Position',[scsz(3)/4 scsz(4)/4 scsz(3)/2 scsz(4)/2])
+
 %% 2D
 
 Image = imread('gantrycrane.png');
 Image = imrotate(Image,45,'crop');
 
-[angles, midPoints, segLengths, IOut] = symmetryViaRegistration2D(Image,'RegMethod','dense');
+[angles, midPoints, segLengths] = symmetryViaRegistration2D(Image);
 
-figure
-image(IOut), axis equal, axis off, title('2D')
+ag = angles(1);
+mp = midPoints(:,1);
+sl = segLengths(1);
+p = mp+sl/2*[cos(ag); sin(ag)];
+q = mp-sl/2*[cos(ag); sin(ag)];
+Image = insertShape(Image,'line',[p(2) p(1) q(2) q(1)],'LineWidth',3,'Color','green');
+
+subplot(1,2,1)
+image(Image), axis equal, axis off, title('2D')
+
 
 %% 3D
 
 ptCloud = pcread('teapot.ply');
 P = ptCloud.Location;
 
-[planePoint, perpVector, scale] = symmetryViaRegistration3D(P);
+[planePoints, perpVectors, ~, scale] = symmetryViaRegistration3D(P);
 
-p = planePoint;
-v = perpVector;
+p = planePoints(:,1);
+v = perpVectors(:,1);
 
 % circle on symmetry plane centered at 'p' with radius 'scale'
 w = [rand; rand; rand];
@@ -31,7 +44,7 @@ for i = 1:length(ags)
     qs(:,i) = q;
 end
 
-figure
+subplot(1,2,2)
 plot3(P(:,1),P(:,2),P(:,3),'r.','MarkerSize',1),hold on
 plot3(p(1),p(2),p(3),'k*')
 plot3([p(1) p(1)+scale/2*v(1)],[p(2) p(2)+scale/2*v(2)],[p(3) p(3)+scale/2*v(3)],'k-')
@@ -44,10 +57,4 @@ view(v)
 ax = gca;
 ax.Projection = 'perspective';
 title('3D')
-
-
-%% Reference
-
-% Finding Mirror Symmetry via Registration
-% Marcelo Cicconet, David G. C. Hildebrand, Hunter Elliott
-% https://arxiv.org/abs/1611.05971
+rotate3d on
