@@ -40,7 +40,7 @@ hold off
 grid on, axis equal, axis vis3d
 xlabel('x'), ylabel('y'), zlabel('z')
 axis off
-view(V)
+view(v)
 ax = gca;
 ax.Projection = 'perspective';
 title('3D')
