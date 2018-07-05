@@ -14,6 +14,8 @@ function [angles, midPoints, segLengths, strenghts, IOut] = symmetryViaRegistrat
 %     'BoxSize': dimensions of patch for 'Normalized Cross Correlation registration (default 50)
 %     'NumBoxSamples': number of patch samples for RANSAC (default 100)
 %     'MaxNumOutputs': suggested maximum number of output symmetry lines; the actuall number can be smaller.
+%     'AngleSet': range of rotation angles used by registration algorithm (default 0:6:360-6);
+%                 if symmetry axis is known to be nearly vertical, using range around zero (e.g. -30:6:30) might improve results
 %
 % Outputs
 %     angles: angles of symmetry lines
@@ -63,6 +65,7 @@ ip.addParameter('RegMethod','dense'); % 'dense','sparse','nxc'
 ip.addParameter('BoxSize',50); % only used with 'nxc' registration
 ip.addParameter('NumBoxSamples',100); % only used with 'nxc' registration
 ip.addParameter('MaxNumOutputs',1); % only used with 'nxc' registration
+ip.addParameter('AngleSet',0:6:360-6); % only used with 'nxc' registration
 ip.parse(varargin{:});
 prmts = ip.Results;
 
@@ -89,7 +92,7 @@ GI = normalize(imgradient(I));
 I = normalize(double(I));
 
 if strcmp(prmts.RegMethod,'nxc')
-    [cellp,cellv,srmags] = eigsymNXC(GI,0,prmts.BoxSize,prmts.NumBoxSamples,prmts.MaxNumOutputs);
+    [cellp,cellv,srmags] = eigsymNXC(GI,0,prmts.BoxSize,prmts.NumBoxSamples,prmts.MaxNumOutputs,prmts.AngleSet);
     srmags = srmags/max(srmags);
     strenghts = srmags(1:length(cellp));
 elseif strcmp(prmts.RegMethod,'dense') || strcmp(prmts.RegMethod,'sparse')
@@ -153,7 +156,7 @@ end
 
 % ----------------------------------------------------------------------------------------------------
 
-function [p,v,srmags] = eigsymNXC(I,refAngle,boxSize,nBoxSamples,maxNOutputs)
+function [p,v,srmags] = eigsymNXC(I,refAngle,boxSize,nBoxSamples,maxNOutputs,angleSet)
 % I should be double, in range [0,1]
 
 % reflect
@@ -168,7 +171,7 @@ yWorldLimits = [1 size(I,1)];
 J = imwarp(I,tform,'OutputView',imref2d(size(I),xWorldLimits,yWorldLimits));
 
 % register
-[tforms, srmags] = computeNormxcorrTransforms(J,I,boxSize,nBoxSamples,maxNOutputs);
+[tforms, srmags] = computeNormxcorrTransforms(J,I,boxSize,nBoxSamples,maxNOutputs,angleSet);
 
 nTForms = length(tforms);
 p = cell(1,nTForms);
@@ -202,10 +205,10 @@ end
 
 end
 
-function [tforms, srmags] = computeNormxcorrTransforms(J,I,boxSize,nBoxSamples,maxNOutputs) % J: moving, I: fixed
+function [tforms, srmags] = computeNormxcorrTransforms(J,I,boxSize,nBoxSamples,maxNOutputs,angleSet) % J: moving, I: fixed
 
 [numrows,numcols] = size(I);
-rangles = 0:6:360-6;
+rangles = angleSet;%0:6:360-6;
 rmags = zeros(1,length(rangles));
 vs = zeros(length(rangles),2);
 
